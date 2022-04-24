@@ -1,0 +1,691 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/BOYLABOAKO/SyctronicX4ROBLOX/main/Libraries/kavo.lua"))()
+local Window = Library.CreateLib("Luna X", "Luna")
+
+local Tab = Window:NewTab("Aimlock")
+local Section = Tab:NewSection("Aimlock")
+
+Section:NewButton("Aimlock", "Aimlock", function()
+    --[[
+    This source is free to use and hopefully a good source for new script developers to learn how to make an aimlock or silent aim.
+    * If this is used in any script, please credit me for it.
+    * Please do not use this in a paid script.
+    
+    Sorry for the really ugly code, I didn't think I would be releasing the source, lmao.
+--]]
+
+-- *NOTE: If the script doesn't start, remove the code in line 70.
+-- Aka: repeat wait() until LP.Character:FindFirstChild("FULLY_LOADED_CHAR");
+
+
+--// Settings
+
+local Settings = {
+    Aimlock = {
+        AimPart = "LowerTorso",
+        AimlockKey = "Q",
+        Prediction = 0.143,
+
+        FOVEnabled = false,
+        FOVShow = false,
+        FOVSize = 30,
+
+        Enabled = false
+    },
+    SilentAim = {
+        Key = "C",
+        AimAt = "LowerTorso",
+        PredictionAmount = 0.139,
+
+        FOVEnabled = false,
+        FOVShow = false,
+        FOVSize = 0,
+
+        Enabled = false,
+        KeyToLockOn = false
+    },
+    CFSpeed = {
+        Speed = 2,
+        
+        Enabled = false,
+        Toggled = false,
+
+        Key = "Z"
+    }
+}
+
+--// Variables (Service)
+
+local Players = game:GetService("Players")
+local RS = game:GetService("RunService")
+local WS = game:GetService("Workspace")
+local GS = game:GetService("GuiService")
+local SG = game:GetService("StarterGui")
+local UIS = game:GetService("UserInputService")
+
+--// Variables (regular)
+
+local LP = Players.LocalPlayer
+local Mouse = LP:GetMouse()
+local Camera = WS.CurrentCamera
+local GetGuiInset = GS.GetGuiInset
+
+local AimlockState = false
+local aimLocked
+local lockVictim
+
+--// Anti-Cheat
+
+repeat wait() until LP.Character:FindFirstChild("FULLY_LOADED_CHAR");
+
+for _,ac in pairs(LP.Character:GetChildren()) do
+    if (ac:IsA("Script") and ac.Name ~= "Animate" and ac.Name ~= "Health") then
+        ac:Destroy();
+    end;
+end;
+
+LP.Character.ChildAdded:Connect(function(child)
+    if (child:IsA("Script") and child.Name ~= "Animate" and ac.Name ~= "Health") then
+        child:Destroy();
+    end;
+end);
+
+--// CFrame Speed
+
+local userInput = game:GetService('UserInputService')
+local runService = game:GetService('RunService')
+
+Mouse.KeyDown:connect(function(Key)
+    local cfKey = Settings.CFSpeed.Key:lower()
+    if (Key == cfKey) then
+        if (Settings.CFSpeed.Toggled) then
+            Settings.CFSpeed.Enabled = not Settings.CFSpeed.Enabled
+            if (Settings.CFSpeed.Enabled == true) then
+                repeat
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame + game.Players.LocalPlayer.Character.Humanoid.MoveDirection * Settings.CFSpeed.Speed
+                    game:GetService("RunService").Stepped:wait()
+                until Settings.CFSpeed.Enabled == false
+            end
+        end
+    end
+end)
+
+--// FOV Circle
+
+local fov = Drawing.new("Circle")
+fov.Filled = false
+fov.Transparency = 1
+fov.Thickness = 1
+fov.Color = Color3.fromRGB(255, 255, 0)
+
+--// Functions
+
+function updateLock()
+    if Settings.Aimlock.FOVEnabled == true and Settings.Aimlock.FOVShow == true then
+        if fov then
+            fov.Radius = Settings.Aimlock.FOVSize * 2
+            fov.Visible = Settings.Aimlock.FOVShow
+            fov.Position = Vector2.new(Mouse.X, Mouse.Y + GetGuiInset(GS).Y)
+
+            return fov
+        end
+    else
+        Settings.Aimlock.FOVShow = false
+        fov.Visible = false
+    end
+end
+
+function WTVP(arg)
+    return Camera:WorldToViewportPoint(arg)
+end
+
+function WTSP(arg)
+    return Camera.WorldToScreenPoint(Camera, arg)
+end
+
+function getClosest()
+    local closestPlayer
+    local shortestDistance = math.huge
+
+    for i, v in pairs(game.Players:GetPlayers()) do
+        local notKO = v.Character:WaitForChild("BodyEffects")["K.O"].Value ~= true
+        local notGrabbed = v.Character:FindFirstChild("GRABBING_COINSTRAINT") == nil
+        
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health ~= 0 and v.Character:FindFirstChild(Settings.Aimlock.AimPart) and notKO and notGrabbed then
+            local pos = Camera:WorldToViewportPoint(v.Character.PrimaryPart.Position)
+            local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).magnitude
+            
+            if (Settings.Aimlock.FOVEnabled) then
+                if (fov.Radius > magnitude and magnitude < shortestDistance) then
+                    closestPlayer = v
+                    shortestDistance = magnitude
+                end
+            else
+                if (magnitude < shortestDistance) then
+                    closestPlayer = v
+                    shortestDistance = magnitude
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+function sendNotification(text)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "hakan.software",
+        Text = text,
+        Duration = 5
+    })
+end
+
+--// Checks if key is down
+
+Mouse.KeyDown:Connect(function(k)
+    local actualKey = Settings.Aimlock.AimlockKey:lower()
+    if (k == actualKey) then
+        if Settings.Aimlock.Enabled == true then
+            aimLocked = not aimLocked
+            if aimLocked then
+                lockVictim = getClosest()
+
+                sendNotification("Locked onto: "..tostring(lockVictim.Character.Humanoid.DisplayName))
+            else
+                if lockVictim ~= nil then
+                    lockVictim = nil
+
+                    sendNotification("Unlocked!")
+                end
+            end
+        end
+    end
+end)
+
+--// Loop update FOV and loop camera lock onto target
+
+local localPlayer = game:GetService("Players").LocalPlayer
+local currentCamera = game:GetService("Workspace").CurrentCamera
+local guiService = game:GetService("GuiService")
+local runService = game:GetService("RunService")
+
+local getGuiInset = guiService.GetGuiInset
+local mouse = localPlayer:GetMouse()
+
+local silentAimed = false
+local silentVictim
+local victimMan
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Filled = false
+FOVCircle.Transparency = 1
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(200, 255, 128)
+function updateFOV()
+    if (FOVCircle) then
+        if (Settings.SilentAim.FOVEnabled) then
+            FOVCircle.Radius = Settings.SilentAim.FOVSize * 2
+            FOVCircle.Visible = Settings.SilentAim.FOVShow
+            FOVCircle.Position = Vector2.new(mouse.X, mouse.Y + getGuiInset(guiService).Y)
+
+            return FOVCircle
+        elseif (not Settings.SilentAim.FOVEnabled) then
+            FOVCircle.Visible = false
+        end
+    end
+end
+
+function getClosestPlayerToCursor()
+    local closestPlayer
+    local shortestDistance = math.huge
+
+    for i, v in pairs(game.Players:GetPlayers()) do
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health ~= 0 and v.Character:FindFirstChild(Settings.SilentAim.AimAt) then
+            local pos = currentCamera:WorldToViewportPoint(v.Character.PrimaryPart.Position)
+            local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).magnitude
+            
+            if (Settings.SilentAim.FOVEnabled == true) then
+                if (FOVCircle.Radius > magnitude and magnitude < shortestDistance) then
+                    closestPlayer = v
+                    shortestDistance = magnitude
+                end
+            else
+                if (magnitude < shortestDistance) then
+                    closestPlayer = v
+                    shortestDistance = magnitude
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+Mouse.KeyDown:Connect(function(k)
+    local actualKey = Settings.SilentAim.Key:lower()
+    if (k == actualKey) then
+        if (Settings.SilentAim.KeyToLockOn == false) then
+            return
+        end
+        if (Settings.SilentAim.Enabled) then
+            silentAimed = not silentAimed
+                
+            if silentAimed then
+                silentVictim = getClosestPlayerToCursor()
+                sendNotification("Locked onto: " .. tostring(silentVictim.Character.Humanoid.DisplayName))
+            elseif not silentAimed and silentVictim ~= nil then
+                silentVictim = nil
+
+                sendNotification('Unlocked')
+            end
+        end
+    end
+end)
+
+runService.RenderStepped:Connect(function()
+    updateFOV()
+    updateLock()
+    victimMan = getClosestPlayerToCursor()
+    if Settings.Aimlock.Enabled == true then
+        if lockVictim ~= nil then
+            Camera.CFrame = CFrame.new(Camera.CFrame.p, lockVictim.Character[Settings.Aimlock.AimPart].Position + lockVictim.Character[Settings.Aimlock.AimPart].Velocity*Settings.Aimlock.Prediction)
+        end
+    end
+end)
+
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(...)
+    local args = {...}
+
+    if Settings.SilentAim.Enabled and Settings.SilentAim.KeyToLockOn and silentAimed and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePos" then
+        args[3] = silentVictim.Character[Settings.SilentAim.AimAt].Position+(silentVictim.Character[Settings.SilentAim.AimAt].Velocity*Settings.SilentAim.PredictionAmount)
+        return old(unpack(args))
+    elseif Settings.SilentAim.Enabled and not Settings.SilentAim.KeyToLockOn and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePos" then
+        args[3] = victimMan.Character[Settings.SilentAim.AimAt].Position+(victimMan.Character[Settings.SilentAim.AimAt].Velocity*Settings.SilentAim.PredictionAmount)
+        return old(unpack(args))
+    end
+
+    return old(...)
+end)
+
+----------------------------------------
+local lib = loadstring(game:HttpGet("https://pastebin.com/raw/mSwV3R8V"))()
+local main = lib:Init()
+----------------------------------------
+
+----------------------------------------
+local Home = main:CreateTab("Home")
+local Config = main:CreateTab("Config", "rbxassetid://6793572208")
+local Misc = main:CreateTab("Misc", "rbxassetid://3192519002")
+----------------------------------------
+
+----------------------------------------
+Home:CreateLabel("Welcome back!", false)
+----------------------------------------
+
+----------------------------------------
+Config:CreateLabel("Config - Aimlock", true)
+Config:CreateToggle("Enabled", function(state)
+    Settings.Aimlock.Enabled = state
+end)
+Config:CreateBox("Prediction", 0.143, function(arg)
+    Settings.Aimlock.Prediction = tonumber(arg)
+end)
+Config:CreateDropdown("AimPart", {'Head', 'UpperTorso', 'HumanoidRootPart', 'LowerTorso'}, 'LowerTorso', function(arg)
+    Settings.Aimlock.AimPart = tostring(arg)
+end)
+Config:CreateToggle("FOV", function(state)
+    Settings.Aimlock.FOVEnabled = state
+end)
+Config:CreateToggle("Show FOV", function(state)
+    Settings.Aimlock.FOVShow = state
+end)
+Config:CreateSlider("FOV Size", 30, 0, 400, 1, function(arg)
+    Settings.Aimlock.FOVSize = tonumber(arg)
+end)
+Config:CreateBind("Keybind", Enum.KeyCode.Q, function(arg)
+    Settings.Aimlock.AimlockKey = arg
+end)
+----------------------------------------
+
+----------------------------------------
+Config:CreateLabel("Config - Silent", false)
+Config:CreateToggle("Enabled", function(state)
+    Settings.SilentAim.Enabled = state
+end)
+Config:CreateToggle("Key to lock on", function(state)
+    Settings.SilentAim.KeyToLockOn = state
+end)
+Config:CreateBox("Prediction", 0.143, function(arg)
+    Settings.SilentAim.PredictionAmount = tonumber(arg)
+end)
+Config:CreateDropdown("AimPart", {'Head', 'UpperTorso', 'HumanoidRootPart', 'LowerTorso'}, 'LowerTorso', function(arg)
+    Settings.SilentAim.AimAt = tostring(arg)
+end)
+Config:CreateToggle("FOV", function(state)
+    Settings.SilentAim.FOVEnabled = state
+end)
+Config:CreateToggle("Show FOV", function(state)
+    Settings.SilentAim.FOVShow = state
+end)
+Config:CreateSlider("FOV Size", 30, 0, 400, 1, function(arg)
+    Settings.SilentAim.FOVSize = tonumber(arg)
+end)
+Config:CreateBind("Keybind", Enum.KeyCode.Q, function(arg)
+    Settings.SilentAim.Key = arg
+end)
+----------------------------------------
+
+----------------------------------------
+Misc:CreateLabel("Miscellaneous", false)
+Misc:CreateToggle("CFS State", function(state)
+    Settings.CFSpeed.Toggled = state
+end)
+Misc:CreateSlider("CFrame Speed", 2, 0, 10, 0.1, function(arg)
+    Settings.CFSpeed.Speed = tonumber(arg)
+end)
+Misc:CreateBind("CFS Key", Enum.KeyCode.Z, function(arg)
+    Settings.CFSpeed.Key = arg
+end)
+
+-- // main script  / / -- 
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/tenaaki/GenericAimbot/main/v1.0.0"))()
+end)
+
+
+local Tab = Window:NewTab("Silent Aim")
+local Section = Tab:NewSection("Silent Aim")
+
+Section:NewButton("Silent Aim", "Silent Aim", function()
+--[[
+░░░░░██╗░█████╗░░█████╗░░██████╗░░██╗░░░░░░░██╗
+░░░░░██║██╔══██╗██╔══██╗██╔════╝░░██║░░██╗░░██║
+░░░░░██║██║░░██║██║░░██║██║░░██╗░░╚██╗████╗██╔╝
+██╗░░██║██║░░██║██║░░██║██║░░╚██╗░░████╔═████║░
+╚█████╔╝╚█████╔╝╚█████╔╝╚██████╔╝░░╚██╔╝░╚██╔╝░
+░╚════╝░░╚════╝░░╚════╝░░╚═════╝░░░░╚═╝░░░╚═╝░░
+
+]]
+-- Toggle
+getgenv().Target = true
+-- Configuration
+getgenv().Key = Enum.KeyCode.Q
+getgenv().Prediction = 0.178
+getgenv().ChatMode = false
+getgenv().NotifMode = true
+    getgenv().PartMode = true
+    getgenv().AirshotFunccc = true
+    getgenv().Partz = "HumanoidRootPart"
+getgenv().AutoPrediction = true
+--
+    _G.Types = {
+        Ball = Enum.PartType.Ball,
+        Block = Enum.PartType.Block, 
+        Cylinder = Enum.PartType.Cylinder
+    }
+    
+    --variables                 
+    	local Tracer = Instance.new("Part", game.Workspace)
+    Tracer.Name = "gay"	
+    Tracer.Anchored = true		
+    Tracer.CanCollide = false
+    Tracer.Transparency = 0.8
+    Tracer.Parent = game.Workspace	
+    Tracer.Shape = _G.Types.Block
+    Tracer.Size = Vector3.new(14,14,14)
+    Tracer.Color = Color3.fromRGB(128,128,128)
+    
+    --
+    local plr = game.Players.LocalPlayer
+local mouse = plr:GetMouse()
+local Runserv = game:GetService("RunService")
+
+circle = Drawing.new("Circle")
+circle.Color = Color3.fromRGB(255,255,255)
+circle.Thickness = 0
+circle.NumSides = 732
+circle.Radius = 120
+circle.Thickness = 0
+circle.Transparency = 0.7
+circle.Visible = true
+circle.Filled = false
+
+Runserv.RenderStepped:Connect(function()
+    circle.Position = Vector2.new(mouse.X,mouse.Y+35)
+end)
+    
+    	local guimain = Instance.new("Folder", game.CoreGui)
+    	local CC = game:GetService"Workspace".CurrentCamera
+    local LocalMouse = game.Players.LocalPlayer:GetMouse()
+    	local Locking = false
+    
+    	
+    --
+    if getgenv().valiansh == true then
+                        game.StarterGui:SetCore("SendNotification", {
+                   Title = "Valiant",
+                   Text = "Already Loaded!",
+                   Duration = 5
+        
+                   })
+        return
+    end
+    
+    getgenv().valiansh = true
+    
+        local UserInputService = game:GetService("UserInputService")
+
+    UserInputService.InputBegan:Connect(function(keygo,ok)
+           if (not ok) then
+           if (keygo.KeyCode == getgenv().Key) then
+               if getgenv().Target == true then
+               Locking = not Locking
+               
+               if Locking then
+               Plr =  getClosestPlayerToCursor()
+                if getgenv().ChatMode then
+        local A_1 = "Target: "..tostring(Plr.Character.Humanoid.DisplayName) local A_2 = "All" local Event = game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest Event:FireServer(A_1, A_2) 
+        	end	
+               if getgenv().NotifMode then
+    			game.StarterGui:SetCore("SendNotification", {
+        Title = "";
+        Text = "Target: "..tostring(Plr.Character.Humanoid.DisplayName);
+    
+    })
+    end
+    elseif not Locking then
+         if getgenv().ChatMode then
+        local A_1 = "Unlocked!" local A_2 = "All" local Event = game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest Event:FireServer(A_1, A_2) 
+        	end	
+        if getgenv().NotifMode then
+                        game.StarterGui:SetCore("SendNotification", {
+                   Title = "",
+                   Text = "Unlocked",
+                   Duration = 5
+               })
+           elseif getgenv().Target == false then
+                        game.StarterGui:SetCore("SendNotification", {
+                   Title = "",
+                   Text = "Target isn't enabled",
+                   Duration = 5
+     
+                   })
+               
+               end
+                  
+ 
+ end     end   
+end
+end
+end)
+	
+	function getClosestPlayerToCursor()
+		local closestPlayer
+		local shortestDistance = circle.Radius
+
+		for i, v in pairs(game.Players:GetPlayers()) do
+			if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health ~= 0 and v.Character:FindFirstChild("LowerTorso") then
+				local pos = CC:WorldToViewportPoint(v.Character.PrimaryPart.Position)
+				local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(LocalMouse.X, LocalMouse.Y)).magnitude
+				if magnitude < shortestDistance then
+					closestPlayer = v
+					shortestDistance = magnitude
+				end
+			end
+		end
+		return closestPlayer
+	end
+--
+if getgenv().PartMode then
+	game:GetService"RunService".Stepped:connect(function()
+		if Locking and Plr.Character and Plr.Character:FindFirstChild("LowerTorso") then
+			Tracer.CFrame = CFrame.new(Plr.Character.LowerTorso.Position+(Plr.Character.LowerTorso.Velocity*Prediction))
+		else
+			Tracer.CFrame = CFrame.new(0, 9999, 0)
+
+		end
+	end)
+end
+
+    
+    
+    --
+	local rawmetatable = getrawmetatable(game)
+	local old = rawmetatable.__namecall
+	setreadonly(rawmetatable, false)
+	rawmetatable.__namecall = newcclosure(function(...)
+		local args = {...}
+		if Locking and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePos" then
+			args[3] = Plr.Character[getgenv().Partz].Position+(Plr.Character[getgenv().Partz].Velocity*Prediction)
+			return old(unpack(args))
+		end
+		return old(...)
+	end)
+
+
+if getgenv().AirshotFunccc == true then
+
+            if Plr.Character.Humanoid.Jump == true and Plr.Character.Humanoid.FloorMaterial == Enum.Material.Air then
+                getgenv().Partz = "RightFoot"
+            else
+                Plr.Character:WaitForChild("Humanoid").StateChanged:Connect(function(old,new)
+                    if new == Enum.HumanoidStateType.Freefall then
+                    getgenv().Partz = "RightFoot"
+                    else
+                        getgenv().Partz = "LowerTorso"
+                    end
+                end)
+            end
+end
+---
+	while wait() do
+	if getgenv().AutoPrediction == true then
+        local pingvalue = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString()
+        local split = string.split(pingvalue,'(')
+        local ping = tonumber(split[1])
+        if ping < 130 then
+            getgenv().Prediction = 0.151
+        elseif ping < 125 then
+            getgenv().Prediction = 0.149
+        elseif ping < 110 then
+            getgenv().Prediction = 0.146
+        elseif ping < 105 then
+            getgenv().Prediction = 0.138
+        elseif ping < 90 then
+            getgenv().Prediction = 0.136
+        elseif ping < 80 then
+            getgenv().Prediction = 0.134
+        elseif ping < 70 then
+            getgenv().Prediction = 0.131
+        elseif ping < 60 then
+            getgenv().Prediction = 0.1229
+        elseif ping < 50 then
+            getgenv().Prediction = 0.1225
+        elseif ping < 40 then
+            getgenv().Prediction = 0.1256
+        end
+	end
+    end
+end)
+
+
+
+local Tab = Window:NewTab("Fov Toggle")
+local Section = Tab:NewSection("Fov")
+
+Section:NewToggle("Fov Toggle", "Fov View Of Camera", function(state)
+    if state then
+      getgenv().fovcha = true
+      game:GetService("RunService").RenderStepped:connect(function()
+        if getgenv().fovcha then
+          workspace.CurrentCamera.FieldOfView = 120
+        end
+      end)
+    else
+      getgenv().fovchaoff = true
+      game:GetService("RunService").RenderStepped:connect(function()
+        if getgenv().fovchaoff then
+          workspace.CurrentCamera.FieldOfView = 60
+        end
+      end)
+
+local Tab = Window:NewTab("Macro")
+local Section = Tab:NewSection("Macro")
+
+Section:NewButton("Macro", "Macro", function()
+    Key = Enum.KeyCode.Q -- If you want to change the keybind, change "Q" with something else
+loadstring(game:HttpGet("https://pastebin.com/raw/YkYju5rm", true))()
+end)
+
+
+
+local Tab = Window:NewTab("Swag Mode V.2")
+local Section = Tab:NewSection("SwagMode")
+
+Section:NewButton("SwagMode", "Swags", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/lerkermer/lua-projects/master/SwagModeV002"))()
+end)
+
+Section:NewLabel("Welcome Now You Can Use Swag Mode On Kiwi X")
+
+
+
+local Tab = Window:NewTab("Faded")
+local Section = Tab:NewSection("Faded")
+
+Section:NewButton("Faded", "Faded", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/NighterEpic/Faded/main/YesEpic", true))()
+end)
+
+
+Section:NewLabel("Welcome Again, You Can Use Faded!")
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "Kiwi X V2", -- Title of notification
+    Text = "Kiwi X V2 has been injected", -- Description of the notification
+    Duration = 6 -- How long the notification will be on they're screen
+})
+
+
+
+
+local Tab = Window:NewTab("Fly")
+local Section = Tab:NewSection("Fly")
+
+Section:NewButton("Fly Toggle X", "Fly Superman It Breaks Your Cheats", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/22kristina/swag/main/admin_fly'))()
+end)
+
+
+
+
+local Tab = Window:NewTab("Credits")
+local Section = Tab:NewSection("Credits To ZioW#8033")
+
+Section:NewButton("Check Console Logs", "Click This Button Check /console", function()
+    print("Made By ZioW#8033 AKA Kiwi X Dev Sexxy😋")
+end)
+
+Section:NewKeybind("KeybindText", "KeybindInfo", Enum.KeyCode.V, function()
+	Library:ToggleUI()
+end)
